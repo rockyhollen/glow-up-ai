@@ -172,8 +172,8 @@ export default function Home() {
           <div className="price-panel">
             <div className="price">$19</div>
             <p>Recommended launch price</p>
-            <Link className="button button-primary full" href="/api/checkout">Start my report</Link>
-            <Link className="button button-ghost full" href="/upload">Test without payment</Link>
+            <Link className="button button-primary full" href="/quiz">Start my report</Link>
+            <Link className="button button-ghost full" href="/quiz">Test without payment</Link>
           </div>
         </div>
       </section>
