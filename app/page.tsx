@@ -61,8 +61,8 @@ export default function Home() {
               face, hair, skin, beard potential, body structure, lifestyle, and goals.
             </p>
             <div className="hero-actions">
-              <Link className="button button-primary" href="/api/checkout">Get My Blueprint</Link>
-              <Link className="button button-secondary" href="/upload">Run local test</Link>
+              <Link className="button button-primary" href="/quiz">Get My Blueprint</Link>
+              <Link className="button button-secondary" href="/quiz">Run local test</Link>
             </div>
             <div className="trust-row">
               <span>PDF-ready</span>
