@@ -48,7 +48,7 @@ export default function Home() {
           <div className="nav-actions">
             <a href="#example" className="nav-link">Sample</a>
             <a href="#pricing" className="nav-link">Pricing</a>
-            <Link className="button button-small button-ghost" href="/upload">Try demo</Link>
+            <Link className="button button-small button-ghost" href="/quiz">Try demo</Link>
           </div>
         </nav>
 
@@ -170,8 +170,8 @@ export default function Home() {
             </p>
           </div>
           <div className="price-panel">
-            <div className="price">$19</div>
-            <p>Recommended launch price</p>
+            <div className="price">Free</div>
+            <p>Pay what you think is fair!</p>
             <Link className="button button-primary full" href="/quiz">Start my report</Link>
             <Link className="button button-ghost full" href="/quiz">Test without payment</Link>
           </div>
