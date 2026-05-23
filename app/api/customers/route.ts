@@ -46,7 +46,6 @@ export async function POST(req: NextRequest) {
         },
         {
           onConflict: 'email',
-          ignoreDuplicates: false,
         }
       )
       .select('id, email, name, goal, budget')
