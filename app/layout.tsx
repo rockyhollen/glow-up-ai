@@ -10,7 +10,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <meta name='impact-site-verification' value='b3aa0182-49b5-4a73-aac3-9749b38f7bf9' />
+        <meta name='impact-site-verification' content='b3aa0182-49b5-4a73-aac3-9749b38f7bf9' />
       </head>
       <body>{children}</body>
     </html>
