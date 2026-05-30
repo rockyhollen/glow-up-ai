@@ -367,17 +367,37 @@ export default function QuizPage() {
     setPhotos(uploadedPhotos)
     setScreen('loading')
     try {
+      const toBase64 = (file: File): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+      const photoBase64s = await Promise.all(uploadedPhotos.slice(0, 4).map(toBase64))
+
       const res = await fetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: answers.email, goal: answers.goal, ageRange: answers.age, budget: answers.budget, maintenance: answers.maintenance, stylePref: answers.style, concerns: answers.concerns || [], sessionId: getSession(), utmSource: new URLSearchParams(window.location.search).get('utm_source'), utmCampaign: new URLSearchParams(window.location.search).get('utm_campaign') }),
+        body: JSON.stringify({
+          email: answers.email,
+          goal: answers.goal,
+          ageRange: answers.age,
+          budget: answers.budget,
+          maintenance: answers.maintenance,
+          stylePref: answers.style,
+          concerns: answers.concerns || [],
+          photoUrls: photoBase64s,
+          sessionId: getSession(),
+          utmSource: new URLSearchParams(window.location.search).get('utm_source'),
+          utmCampaign: new URLSearchParams(window.location.search).get('utm_campaign'),
+        }),
       })
       const data = await res.json()
       if (data.customer?.id) setCustomerId(data.customer.id)
     } catch (err) { console.error(err) }
     setTimeout(() => setScreen('ready'), 5500)
   }
-
   const getValue = () => answers[STEPS[stepIndex]?.id as keyof Answers]
 
   return (
