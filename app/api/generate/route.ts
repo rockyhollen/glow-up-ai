@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { ChatCompletionContentPart } from 'openai/resources/chat/completions'
 import { createClient } from '@supabase/supabase-js'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
@@ -10,6 +11,66 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
+const GLOW_UP_SYSTEM_PROMPT = `You are an elite men's appearance consultant. Give brutally honest, hyper-specific, actionable advice. Always respond with valid JSON only. No markdown, no preamble.`
+
+function buildMessageContent(customer: any): ChatCompletionContentPart[] {
+  const userContent: ChatCompletionContentPart[] = [
+    {
+      type: 'text',
+      text: JSON.stringify({
+        client: {
+          goal: customer.goal || 'confidence',
+          age_range: customer.age_range || '25-34',
+          budget: customer.budget || 'mid',
+          maintenance: customer.maintenance || 'moderate',
+          style_pref: customer.style_pref || 'clean',
+          concerns: (customer.concerns || []).join(', ') || 'none specified',
+        },
+        instruction: 'Analyze the attached images and intake info to generate the complete Glow-Up Blueprint JSON.',
+      }),
+    },
+  ]
+
+  // Add photos as image_url blocks with detail optimization
+  if (customer.photo_urls && Array.isArray(customer.photo_urls)) {
+    for (const photoUrl of customer.photo_urls.slice(0, 2)) {
+      if (typeof photoUrl === 'string' && photoUrl.trim()) {
+        userContent.push({
+          type: 'image_url',
+          image_url: {
+            url: photoUrl,
+            detail: 'low',
+          },
+        } as ChatCompletionContentPart)
+      }
+    }
+  }
+
+  return userContent
+}
+
+function extractJson(text: string): Record<string, any> {
+  if (!text || typeof text !== 'string') {
+    return {}
+  }
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    // Attempt to extract JSON from text if parsing fails
+    const match = text.match(/\{[\s\S]*\}/)
+    if (match) {
+      try {
+        return JSON.parse(match[0])
+      } catch {
+        console.warn('Failed to extract JSON from response text')
+        return {}
+      }
+    }
+    return {}
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { customerId } = await req.json()
@@ -18,16 +79,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'customerId required' }, { status: 400 })
     }
 
-    // Fetch customer directly
-    const { data: customers, error } = await supabaseAdmin
+    // Fetch customer
+    const { data: customers, error: fetchError } = await supabaseAdmin
       .from('customers')
       .select('*')
       .eq('id', customerId)
       .limit(1)
 
-    if (error) {
-      console.error('Customer fetch error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (fetchError) {
+      console.error('Customer fetch error:', fetchError)
+      return NextResponse.json({ error: 'Failed to fetch customer' }, { status: 500 })
     }
 
     if (!customers || customers.length === 0) {
@@ -41,100 +102,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ report: customer.ai_report, cached: true })
     }
 
-    // Generate report with OpenAI
-    const completion = await openai.chat.completions.create({
+    // Build message content with proper types
+    const userContent = buildMessageContent(customer)
+
+    // Generate report using Chat Completions API
+    const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        {
-          role: 'system',
-          content: `You are an elite men's appearance consultant. Give brutally honest, hyper-specific, actionable advice. Always respond with valid JSON only. No markdown, no preamble.`
-        },
-        {
-          role: 'user',
-          content: `Generate a complete personalized glow-up blueprint for this client:
-
-PROFILE:
-- Goal: ${customer.goal || 'confidence'}
-- Age: ${customer.age_range || '25-34'}
-- Budget: ${customer.budget || 'mid'}
-- Daily time: ${customer.maintenance || 'moderate'}
-- Style: ${customer.style_pref || 'clean'}
-- Concerns: ${(customer.concerns || []).join(', ') || 'none'}
-
-Return this exact JSON:
-{
-  "archetype_summary": {
-    "type": "3-4 word archetype label",
-    "summary": "2 sentence description",
-    "top_3_wins": ["win1", "win2", "win3"]
-  },
-  "hair_plan": {
-    "barber_script": "Exact script with guard numbers and lengths",
-    "product_type": "Describe ideal product characteristics",
-    "diy_option": "Free or DIY alternative",
-    "maintenance_routine": "Daily steps"
-  },
-  "beard_plan": {
-    "recommendation": "grow/trim/clean shave with reason",
-    "ideal_length_mm": "specific mm",
-    "neckline_guide": "Exact neckline instructions",
-    "maintenance_frequency": "How often"
-  },
-  "skin_plan": {
-    "assessment": "Brief honest assessment",
-    "morning_routine": ["step1", "step2", "step3"],
-    "evening_routine": ["step1", "step2"],
-    "ingredient_targets": ["ingredient1", "ingredient2"],
-    "diy_option": "Free DIY recipe"
-  },
-  "style_system": {
-    "archetype_direction": "One sentence direction",
-    "fit_rules": ["rule1", "rule2", "rule3"],
-    "core_colors": ["color1", "color2", "color3"],
-    "outfit_formulas": {
-      "casual": "Specific formula",
-      "dating": "Specific formula",
-      "professional": "Specific formula"
-    },
-    "shopping_priority": ["first", "second", "third"]
-  },
-  "execution_plan": {
-    "this_week": ["action1", "action2", "action3"],
-    "week_2": ["action1", "action2"],
-    "month_1": ["action1", "action2"]
-  },
-  "presence_notes": "2-3 sentences on posture and presence"
-}`
-        }
+        { role: 'system', content: GLOW_UP_SYSTEM_PROMPT },
+        { role: 'user', content: userContent },
       ],
-      temperature: 0.7,
-      max_tokens: 2000,
+      temperature: 0.35,
+      max_tokens: 4000,
     })
 
-    const raw = completion.choices[0]?.message?.content || '{}'
-    let report: any = {}
+    // Extract and validate response
+    const text = response.choices[0]?.message?.content || ''
+    const report = extractJson(text)
 
-    try {
-      report = JSON.parse(raw)
-    } catch {
-      const match = raw.match(/\{[\s\S]*\}/)
-      if (match) report = JSON.parse(match[0])
+    // Validate report has content before saving
+    if (!report || Object.keys(report).length === 0) {
+      console.warn('Empty report generated for customer:', customerId)
+      return NextResponse.json(
+        { error: 'Failed to generate valid report' },
+        { status: 500 }
+      )
     }
 
-    // Save report to customer
-    await supabaseAdmin
+    // Save report to database
+    const { error: updateError } = await supabaseAdmin
       .from('customers')
       .update({
         ai_report: report,
-        archetype: report.archetype_summary?.type || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', customerId)
 
+    if (updateError) {
+      console.error('Failed to save report:', updateError)
+      return NextResponse.json(
+        { error: 'Failed to save report' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json({ report, cached: false })
 
   } catch (err: any) {
-    console.error('generate error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('generate route error:', err)
+    const errorMessage = err?.message || 'Failed to generate report'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
