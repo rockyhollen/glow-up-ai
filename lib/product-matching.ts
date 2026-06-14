@@ -150,24 +150,37 @@ async function matchCategory(
 // Pulls relevant AI text for each section
 // ─────────────────────────────────────────────────────────────
 function extractAiContext(section: Category, aiReport: any): string {
-  if (!aiReport) return ''
+  if (!aiReport || typeof aiReport !== 'object') return ''
 
   try {
     switch (section) {
       case 'tops':
+        // Extract core items from style_system
         return aiReport.style_system?.core_items?.join(', ') || ''
       case 'pants':
+        // Extract fit rules from style_system
         return aiReport.style_system?.fit_rules?.join(', ') || ''
       case 'jackets':
+        // Extract casual outfit suggestions from style_system
         return aiReport.style_system?.outfits?.casual?.join(', ') || ''
       case 'shoes':
+        // Fixed: Extract from style_system.image_queries (not a non-existent field)
         return aiReport.style_system?.image_queries?.join(', ') || ''
       case 'grooming':
+        // Extract daily skin routine from skin_plan
         return aiReport.skin_plan?.routine?.daily?.join(', ') || ''
+      case 'skincare':
+        // Extract skincare products/recommendations
+        return aiReport.skin_plan?.assessment || ''
+      case 'accessories':
+        // Extract from behavioral optimization or presence notes
+        return aiReport.behavioral_optimization?.presence?.join(', ') || 
+               aiReport.presence_notes || ''
       default:
         return ''
     }
-  } catch {
+  } catch (error) {
+    console.error(`extractAiContext error for section ${section}:`, error)
     return ''
   }
 }
@@ -178,54 +191,68 @@ function extractAiContext(section: Category, aiReport: any): string {
 async function buildBundles(input: MatchingInput): Promise<BundleMatch[]> {
   const bundles: BundleMatch[] = []
 
-  // Dating kit
-  if (['dating', 'social', 'confidence'].includes(input.goal)) {
-    const [top, pant, shoe, jacket] = await Promise.all([
-      matchCategory('tops', { ...input, goal: 'dating' }, 1),
-      matchCategory('pants', { ...input, goal: 'dating' }, 1),
-      matchCategory('shoes', { ...input, goal: 'dating' }, 1),
-      matchCategory('jackets', { ...input, goal: 'dating' }, 1),
-    ])
+  try {
+    // Dating kit
+    if (['dating', 'social', 'confidence'].includes(input.goal)) {
+      const [top, pant, shoe, jacket] = await Promise.all([
+        matchCategory('tops', { ...input, goal: 'dating' }, 1),
+        matchCategory('pants', { ...input, goal: 'dating' }, 1),
+        matchCategory('shoes', { ...input, goal: 'dating' }, 1),
+        matchCategory('jackets', { ...input, goal: 'dating' }, 1),
+      ])
 
-    bundles.push({
-      id: 'dating-kit',
-      label: 'Dating Night Kit',
-      emoji: '🔥',
-      description: 'Complete outfit system for maximum attraction',
-      products: [...top, ...pant, ...shoe, ...jacket].filter(Boolean),
-    })
-  }
+      const datingProducts = [...top, ...pant, ...shoe, ...jacket].filter(Boolean)
+      if (datingProducts.length > 0) {
+        bundles.push({
+          id: 'dating-kit',
+          label: 'Dating Night Kit',
+          emoji: '🔥',
+          description: 'Complete outfit system for maximum attraction',
+          products: datingProducts,
+        })
+      }
+    }
 
-  // Professional kit
-  if (['professional', 'confidence'].includes(input.goal)) {
-    const [top, pant, shoe, jacket] = await Promise.all([
-      matchCategory('tops', { ...input, goal: 'professional' }, 1),
-      matchCategory('pants', { ...input, goal: 'professional' }, 1),
-      matchCategory('shoes', { ...input, goal: 'professional' }, 1),
-      matchCategory('jackets', { ...input, goal: 'professional' }, 1),
-    ])
+    // Professional kit
+    if (['professional', 'confidence'].includes(input.goal)) {
+      const [top, pant, shoe, jacket] = await Promise.all([
+        matchCategory('tops', { ...input, goal: 'professional' }, 1),
+        matchCategory('pants', { ...input, goal: 'professional' }, 1),
+        matchCategory('shoes', { ...input, goal: 'professional' }, 1),
+        matchCategory('jackets', { ...input, goal: 'professional' }, 1),
+      ])
 
-    bundles.push({
-      id: 'professional-kit',
-      label: 'Professional Upgrade Pack',
-      emoji: '💼',
-      description: 'Sharp, credible, put-together for any work context',
-      products: [...top, ...pant, ...shoe, ...jacket].filter(Boolean),
-    })
-  }
+      const professionalProducts = [...top, ...pant, ...shoe, ...jacket].filter(Boolean)
+      if (professionalProducts.length > 0) {
+        bundles.push({
+          id: 'professional-kit',
+          label: 'Professional Upgrade Pack',
+          emoji: '💼',
+          description: 'Sharp, credible, put-together for any work context',
+          products: professionalProducts,
+        })
+      }
+    }
 
-  // Low maintenance daily kit
-  bundles.push({
-    id: 'daily-kit',
-    label: 'Low Maintenance Daily',
-    emoji: '⚡',
-    description: 'Grab-and-go basics that always look intentional',
-    products: (await Promise.all([
+    // Low maintenance daily kit
+    const dailyProducts = (await Promise.all([
       matchCategory('tops', { ...input }, 1),
       matchCategory('pants', { ...input }, 1),
       matchCategory('shoes', { ...input }, 1),
-    ])).flat().filter(Boolean),
-  })
+    ])).flat().filter(Boolean)
+
+    if (dailyProducts.length > 0) {
+      bundles.push({
+        id: 'daily-kit',
+        label: 'Low Maintenance Daily',
+        emoji: '⚡',
+        description: 'Grab-and-go basics that always look intentional',
+        products: dailyProducts,
+      })
+    }
+  } catch (error) {
+    console.error('buildBundles error:', error)
+  }
 
   return bundles
 }
@@ -236,6 +263,19 @@ async function buildBundles(input: MatchingInput): Promise<BundleMatch[]> {
 export async function matchProductsForCustomer(
   input: MatchingInput
 ): Promise<MatchResult> {
+
+  // Validate input
+  if (!input?.customerId) {
+    console.error('matchProductsForCustomer: missing customerId')
+    return {
+      tops: { products: [], section: 'tops', aiContext: '' },
+      pants: { products: [], section: 'pants', aiContext: '' },
+      jackets: { products: [], section: 'jackets', aiContext: '' },
+      shoes: { products: [], section: 'shoes', aiContext: '' },
+      grooming: { products: [], section: 'grooming', aiContext: '' },
+      bundles: [],
+    }
+  }
 
   // Run all category queries in parallel
   const [tops, pants, jackets, shoes, grooming, bundles] = await Promise.all([
@@ -285,13 +325,22 @@ export async function saveRecommendations(
   customerId: string,
   matchResult: MatchResult
 ): Promise<void> {
+  if (!customerId) {
+    console.error('saveRecommendations: missing customerId')
+    return
+  }
+
   const rows: any[] = []
 
   const sections = ['tops', 'pants', 'jackets', 'shoes', 'grooming'] as const
 
   sections.forEach(section => {
     const sectionData = matchResult[section]
+    if (!sectionData?.products) return
+
     sectionData.products.forEach((product, idx) => {
+      if (!product?.id) return // Skip invalid products
+
       rows.push({
         customer_id: customerId,
         product_id: product.id,
@@ -304,11 +353,16 @@ export async function saveRecommendations(
     })
   })
 
-  if (rows.length > 0) {
-    const { error } = await supabaseAdmin
-      .from('recommendations')
-      .insert(rows)
+  if (rows.length === 0) {
+    console.warn('saveRecommendations: no products to save')
+    return
+  }
 
-    if (error) console.error('saveRecommendations error:', error)
+  const { error } = await supabaseAdmin
+    .from('recommendations')
+    .insert(rows)
+
+  if (error) {
+    console.error('saveRecommendations error:', error)
   }
 }
