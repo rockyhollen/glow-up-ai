@@ -4,7 +4,8 @@
 // queries Supabase for matching products, returns ranked results
 // ─────────────────────────────────────────────────────────────
 
-import { supabaseAdmin, AffiliateProduct, Category, Customer } from './supabase'
+import { supabaseAdmin } from './supabase-admin'
+import { AffiliateProduct, Category, Customer } from './supabase'
 
 // ── Input shape from AI report + customer answers ─────────────
 export interface MatchingInput {

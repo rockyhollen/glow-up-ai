@@ -1,22 +1,15 @@
 // lib/supabase.ts
 // ─────────────────────────────────────────────────────────────
-// Supabase client — use supabaseAdmin for server-side API routes
-// Use supabase (anon) for client-side reads only
+// Client-side Supabase client only (respects RLS).
+// For server-side/admin access, use lib/supabase-admin.ts instead.
 // ─────────────────────────────────────────────────────────────
 
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-// Client-side (public, respects RLS)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-// Server-side (bypasses RLS — use ONLY in API routes)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
-})
 
 // ─────────────────────────────────────────────────────────────
 // DATABASE TYPES
@@ -107,7 +100,6 @@ export interface Recommendation {
   product?: AffiliateProduct
 }
 
-// Grouped recommendations by section — used in the UI
 export interface RecommendationsBySection {
   tops: AffiliateProduct[]
   pants: AffiliateProduct[]
